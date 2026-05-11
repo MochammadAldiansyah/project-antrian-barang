@@ -24,9 +24,6 @@
       <li><a href="{% url 'antrian:cek_status' %}" class="{% if active_page == 'cek_status' %}active{% endif %}">Cek Status</a></li>
       <li><a href="{% url 'antrian:bantuan' %}" class="{% if active_page == 'bantuan' %}active{% endif %}">Bantuan</a></li>
     </ul>
-    <div class="navbar-right">
-      <a href="{% url 'antrian:admin_login' %}" class="btn-admin-login">Admin Login</a>
-    </div>
   </nav>
 
   {% block content %}{% endblock %}

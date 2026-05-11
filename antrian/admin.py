@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ServiceType, Counter, Officer, QueueTicket
+from .models import ServiceType, Counter, Officer, QueueTicket, DummyResi
 
 
 @admin.register(ServiceType)

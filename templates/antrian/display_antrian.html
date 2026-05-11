@@ -31,22 +31,22 @@
       <div class="display-current">
         <div class="display-status-label">SEDANG DILAYANI</div>
         {% if current_serving %}
-          <div class="display-number">{{ current_serving.ticket_number }}</div>
-          <div class="display-counter-badge">{{ current_serving.counter|default:"LOKET 01" }}</div>
+          <div class="display-number" id="currentNumber">{{ current_serving.ticket_number }}</div>
+          <div class="display-counter-badge" id="currentCounter">{{ current_serving.counter|default:"LOKET 01" }}</div>
         {% else %}
-          <div class="display-number" style="font-size:4rem;color:var(--gray-500);">---</div>
-          <p style="color:var(--gray-500);">Belum ada antrian dipanggil</p>
+          <div class="display-number" id="currentNumber" style="font-size:4rem;color:var(--gray-500);">---</div>
+          <p id="currentEmpty" style="color:var(--gray-500);">Belum ada antrian dipanggil</p>
         {% endif %}
         <div class="display-info-row">
           <div class="display-info-item">
             <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
             <div class="label">Rata-Rata Tunggu</div>
-            <div class="value">{{ est_wait|default:"0" }} Menit</div>
+            <div class="value" id="estWait">{{ est_wait|default:"0" }} Menit</div>
           </div>
           <div class="display-info-item">
             <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
             <div class="label">Sisa Antrian</div>
-            <div class="value">{{ total_waiting }} Orang</div>
+            <div class="value" id="totalWaiting">{{ total_waiting }} Orang</div>
           </div>
         </div>
       </div>
@@ -54,7 +54,7 @@
       <!-- Sidebar: Upcoming -->
       <div class="display-sidebar">
         <h3>Antrian Berikutnya</h3>
-        <ul class="upcoming-list">
+        <ul class="upcoming-list" id="upcomingList">
           {% for ticket in upcoming %}
           <li class="upcoming-item">
             <span class="number">{{ ticket.ticket_number }}</span>
@@ -89,8 +89,99 @@
   </div>
 
   <script>
-    // Auto-refresh every 5 seconds
-    setInterval(()=>{ location.reload(); }, 10000);
+    let lastCalledNumber = '{{ current_serving.ticket_number|default:"" }}';
+
+    function updateDisplay() {
+      fetch('/api/queue-status/')
+        .then(r => r.json())
+        .then(data => {
+          const numEl = document.getElementById('currentNumber');
+          const counterEl = document.getElementById('currentCounter');
+          const emptyEl = document.getElementById('currentEmpty');
+          const waitEl = document.getElementById('estWait');
+          const totalEl = document.getElementById('totalWaiting');
+          const upcomingEl = document.getElementById('upcomingList');
+
+          // Update current serving
+          if (data.current) {
+            numEl.textContent = data.current.number;
+            numEl.style.fontSize = '';
+            numEl.style.color = '';
+
+            // Pastikan counter badge ada
+            if (!counterEl) {
+              const badge = document.createElement('div');
+              badge.className = 'display-counter-badge';
+              badge.id = 'currentCounter';
+              badge.textContent = data.current.counter;
+              numEl.parentNode.insertBefore(badge, numEl.nextSibling);
+            } else {
+              counterEl.textContent = data.current.counter;
+              counterEl.style.display = '';
+            }
+
+            if (emptyEl) emptyEl.style.display = 'none';
+
+            // Animasi pulse jika nomor baru dipanggil
+            if (data.current.number !== lastCalledNumber) {
+              numEl.style.animation = 'none';
+              numEl.offsetHeight; // trigger reflow
+              numEl.style.animation = 'pulse-glow 1s ease 3';
+              lastCalledNumber = data.current.number;
+
+              // Suara notifikasi panggilan (untuk display TV)
+              try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                [660, 880, 1100].forEach((freq, i) => {
+                  setTimeout(() => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.value = 0.3;
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    setTimeout(() => osc.stop(), 250);
+                  }, i * 350);
+                });
+              } catch(e) {}
+            }
+          } else {
+            numEl.textContent = '---';
+            numEl.style.fontSize = '4rem';
+            numEl.style.color = 'var(--gray-500)';
+            if (counterEl) counterEl.style.display = 'none';
+            if (emptyEl) { emptyEl.style.display = ''; emptyEl.textContent = 'Belum ada antrian dipanggil'; }
+          }
+
+          // Update estimasi & sisa antrian
+          if (waitEl) waitEl.textContent = (data.total_waiting * 5) + ' Menit';
+          if (totalEl) totalEl.textContent = data.total_waiting + ' Orang';
+
+          // Update upcoming list
+          if (upcomingEl) {
+            if (data.upcoming && data.upcoming.length > 0) {
+              upcomingEl.innerHTML = data.upcoming.map(t =>
+                '<li class="upcoming-item"><span class="number">' + t.number + '</span></li>'
+              ).join('');
+            } else {
+              upcomingEl.innerHTML = '<li class="upcoming-item"><span style="color:var(--gray-500);">Tidak ada antrian</span></li>';
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Polling setiap 3 detik tanpa reload halaman
+    setInterval(updateDisplay, 3000);
   </script>
+
+  <style>
+    @keyframes pulse-glow {
+      0%, 100% { transform: scale(1); text-shadow: none; }
+      50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(99,102,241,.6), 0 0 60px rgba(99,102,241,.3); }
+    }
+  </style>
 </body>
 </html>

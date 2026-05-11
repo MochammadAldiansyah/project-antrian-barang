@@ -18,7 +18,7 @@ if not User.objects.filter(username='admin').exists():
     admin_user.first_name = 'Budi'
     admin_user.last_name = 'Santoso'
     admin_user.save()
-    print("✅ Superuser 'admin' created (password: admin123)")
+    print("Superuser 'admin' created (password: admin123)")
 else:
     admin_user = User.objects.get(username='admin')
     print("ℹ️  Superuser 'admin' already exists")
@@ -32,18 +32,18 @@ services = [
 ]
 for code, name, desc in services:
     ServiceType.objects.get_or_create(code=code, defaults={'name': name, 'description': desc})
-print("✅ Service types created")
+print("Service types created")
 
 # Create Counters
 for i in range(1, 4):
     Counter.objects.get_or_create(number=i, defaults={'name': f'Meja Layanan {i:02d}'})
-print("✅ Counters created")
+print("Counters created")
 
 # Create Officer
 counter1 = Counter.objects.get(number=1)
 if not Officer.objects.filter(user=admin_user).exists():
     Officer.objects.create(user=admin_user, counter=counter1, employee_id='EMP-001', phone='081234567890')
-    print("✅ Officer profile created for admin")
+    print("Officer profile created for admin")
 
 # Create sample tickets
 svc_a = ServiceType.objects.get(code='A')
@@ -76,6 +76,6 @@ for i, (name, phone, svc, status) in enumerate(sample_tickets):
     if created:
         print(f"  🎫 Ticket {t.ticket_number} ({t.tracking_code}) - {name}")
 
-print("\n✅ Seed data complete!")
+print("\nSeed data complete!")
 print("📌 Login: admin / admin123")
 print("📌 Run: python manage.py runserver")

@@ -21,6 +21,8 @@ urlpatterns = [
     path('admin-antrian-aktif/', views.admin_antrian_aktif, name='admin_antrian_aktif'),
     path('admin-riwayat/', views.admin_riwayat, name='admin_riwayat'),
     path('admin-pengaturan/', views.admin_pengaturan, name='admin_pengaturan'),
+    path('admin-generate-resi/', views.admin_generate_resi, name='admin_generate_resi'),
+    path('admin-delete-resi/<int:resi_id>/', views.delete_resi, name='delete_resi'),
 
     # API endpoints
     path('api/call-next/', views.call_next, name='call_next'),

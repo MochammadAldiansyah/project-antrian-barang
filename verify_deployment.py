@@ -31,7 +31,7 @@ def check_requirements():
         print("   Consider adding them to requirements.txt")
         return False
     
-    print("✅ All required packages found")
+    print("All required packages found")
     return True
 
 def check_settings():
@@ -57,7 +57,7 @@ def check_settings():
     all_ok = True
     for check, desc in checks:
         if check in content:
-            print(f"✅ {desc}")
+            print(f"{desc}")
         else:
             print(f"⚠️  {desc} - NOT FOUND")
             all_ok = False
@@ -78,7 +78,7 @@ def check_files():
     all_ok = True
     for file in required_files:
         if Path(file).exists():
-            print(f"✅ {file} found")
+            print(f"{file} found")
         else:
             print(f"❌ {file} NOT FOUND")
             all_ok = False
@@ -98,7 +98,7 @@ def check_wsgi():
         content = f.read()
     
     if 'application = get_wsgi_application()' in content:
-        print("✅ WSGI application configured")
+        print("WSGI application configured")
         return True
     else:
         print("❌ WSGI application not properly configured")
@@ -121,13 +121,13 @@ def main():
     print("=" * 50)
     
     for check, result in results.items():
-        status = "✅ PASS" if result else "⚠️  WARN/FAIL"
+        status = "PASS" if result else "⚠️  WARN/FAIL"
         print(f"{check}: {status}")
     
     all_pass = all(results.values())
     
     if all_pass:
-        print("\n✅ Project is ready for Vercel deployment!")
+        print("\nProject is ready for Vercel deployment!")
         print("\nNext steps:")
         print("1. Generate SECRET_KEY: python manage.py shell")
         print("2. Setup PostgreSQL (Neon/Railway/Supabase)")

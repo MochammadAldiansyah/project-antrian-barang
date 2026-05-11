@@ -1,6 +1,6 @@
 # Panduan Deploy ke Vercel
 
-## ✅ Checklist Pre-Deployment
+## Checklist Pre-Deployment
 
 ### 1. Generate Secret Key
 ```bash

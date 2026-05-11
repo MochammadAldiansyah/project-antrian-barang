@@ -139,3 +139,25 @@ class QueueTicket(models.Model):
             delta = self.completed_at - self.served_at
             return int(delta.total_seconds() / 60)
         return 0
+
+
+class DummyResi(models.Model):
+    """Simulasi database paket/resi masuk dari kurir (untuk demo UKK)"""
+    resi_number = models.CharField(max_length=20, unique=True, verbose_name="Nomor Resi")
+    customer_name = models.CharField(max_length=100, verbose_name="Nama Pelanggan")
+    customer_phone = models.CharField(max_length=20, verbose_name="No HP")
+    service_type = models.ForeignKey(ServiceType, on_delete=models.CASCADE, verbose_name="Jenis Layanan")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Tanggal Masuk")
+
+    class Meta:
+        verbose_name = "Resi Paket"
+        verbose_name_plural = "Resi Paket"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.resi_number} - {self.customer_name}"
+
+    @property
+    def qr_string(self):
+        """Format string untuk QR Code: RESI|Nama|Phone|ServiceCode"""
+        return f"{self.resi_number}|{self.customer_name}|{self.customer_phone}|{self.service_type.code}"

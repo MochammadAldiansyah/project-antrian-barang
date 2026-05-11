@@ -1,0 +1,266 @@
+{% extends "antrian/admin_base.html" %}
+{% block admin_title %}Database Resi Paket{% endblock %}
+
+{% block admin_content %}
+<div class="admin-header">
+  <div>
+    <h1>Database Resi Paket</h1>
+    <p class="date">Simulasi database paket masuk dari kurir</p>
+  </div>
+</div>
+
+<!-- Messages -->
+{% if messages %}
+<div style="margin-bottom:16px;">
+  {% for msg in messages %}
+  <div class="{% if msg.tags == 'success' %}alert-success{% elif msg.tags == 'error' %}alert-error{% else %}alert-info{% endif %}" style="padding:10px 16px;border-radius:var(--radius-sm);margin-bottom:8px;font-size:.875rem;font-weight:500;">
+    {{ msg }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Form Input Resi Baru -->
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-header" style="display:flex;align-items:center;gap:8px;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Tambah Paket/Resi Baru
+  </div>
+  <div class="card-body">
+    <form method="post" id="resiForm">{% csrf_token %}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="form-group">
+          <label class="form-label">Nomor Resi</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" name="resi_number" id="resi_number" class="form-input" readonly style="background:var(--gray-100);flex:1;">
+            <button type="button" onclick="regenerateResi()" class="btn btn-outline btn-sm" style="width:auto;white-space:nowrap;" title="Generate nomor baru">🔄</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Jenis Layanan</label>
+          <select name="service_type" class="form-select" required>
+            <option value="">-- Pilih --</option>
+            {% for svc in services %}
+            <option value="{{ svc.pk }}">{{ svc.code }} - {{ svc.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nama Pelanggan</label>
+          <input type="text" name="customer_name" class="form-input" placeholder="Contoh: Budi Santoso" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nomor HP</label>
+          <input type="text" name="customer_phone" class="form-input" placeholder="Contoh: 081234567890" required>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:auto;margin-top:8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Simpan ke Database
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Daftar Resi Tersimpan -->
+<div class="card">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <span style="display:flex;align-items:center;gap:8px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+      Resi Tersimpan ({{ total_resi }})
+    </span>
+    <!-- Search Bar -->
+    <div style="position:relative;min-width:260px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchResi" class="form-input" placeholder="Cari nama atau nomor resi..." style="padding-left:36px;height:38px;font-size:.8125rem;" oninput="filterResi()">
+    </div>
+  </div>
+  <div class="card-body">
+    {% if all_resi %}
+    <div class="qr-generator-grid" id="resiGrid">
+      {% for resi in all_resi %}
+      <div class="qr-card resi-item"
+           data-search="{{ resi.resi_number|lower }} {{ resi.customer_name|lower }}"
+           data-resi-id="{{ resi.pk }}"
+           data-qr-value="{{ resi.qr_string }}"
+           data-resi-number="{{ resi.resi_number }}"
+           data-customer-name="{{ resi.customer_name }}"
+           data-service-name="{{ resi.service_type.name }}">
+        <div class="qr-card-code" id="qr-{{ resi.pk }}"></div>
+        <div class="qr-card-info">
+          <div class="qr-card-badge">{{ resi.service_type.code }}</div>
+          <h4>{{ resi.customer_name }}</h4>
+          <p style="font-size:.75rem;color:var(--gray-500);margin-top:2px;">{{ resi.resi_number }}</p>
+          <p style="font-size:.75rem;color:var(--gray-500);">📱 {{ resi.customer_phone }} &bull; {{ resi.service_type.name }}</p>
+        </div>
+        <div class="qr-card-actions">
+          <button class="btn btn-outline btn-sm btn-download-qr" style="width:auto;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download
+          </button>
+          <button class="btn btn-outline btn-sm btn-print-qr" style="width:auto;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Cetak
+          </button>
+          <form method="post" action="{% url 'antrian:delete_resi' resi.pk %}" style="display:inline;" onsubmit="return confirm('Hapus resi ini?')">{% csrf_token %}
+            <button type="submit" class="btn btn-outline btn-sm" style="width:auto;color:var(--red-500);border-color:var(--red-500);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              Hapus
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <!-- Empty search state -->
+    <div id="emptySearch" style="display:none;text-align:center;padding:40px;color:var(--gray-400);">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px;opacity:.4;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <p>Tidak ada resi yang cocok dengan pencarian.</p>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:40px;color:var(--gray-400);">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px;opacity:.4;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+      <p>Belum ada resi yang tersimpan.</p>
+      <p style="font-size:.8125rem;">Gunakan form di atas untuk menambahkan data paket masuk.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- QR Code Library + Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script>
+// ===== Generate random resi number =====
+function generateRandomResi() {
+  var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  var result = 'RESI-';
+  for (var i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  document.getElementById('resi_number').value = result;
+}
+function regenerateResi() { generateRandomResi(); }
+window.addEventListener('DOMContentLoaded', function() {
+  generateRandomResi();
+  renderAllQR();
+  bindButtons();
+});
+
+// ===== Render QR Codes untuk semua resi card =====
+function getResiData() {
+  var data = {};
+  var cards = document.querySelectorAll('.resi-item');
+  cards.forEach(function(card) {
+    var id = card.getAttribute('data-resi-id');
+    var qrEl = card.getAttribute('data-qr-value');
+    if (id && qrEl) data[id] = qrEl;
+  });
+  return data;
+}
+
+function renderAllQR() {
+  var cards = document.querySelectorAll('.resi-item');
+  cards.forEach(function(card) {
+    var id = card.getAttribute('data-resi-id');
+    var qrValue = card.getAttribute('data-qr-value');
+    var el = document.getElementById('qr-' + id);
+    if (el && qrValue && !el.querySelector('canvas')) {
+      var canvas = document.createElement('canvas');
+      el.appendChild(canvas);
+      new QRious({
+        element: canvas,
+        value: qrValue,
+        size: 180,
+        background: '#ffffff',
+        foreground: '#1a2b6b',
+        level: 'M'
+      });
+    }
+  });
+}
+
+// ===== Live Search Filter =====
+function filterResi() {
+  var query = document.getElementById('searchResi').value.toLowerCase().trim();
+  var cards = document.querySelectorAll('.resi-item');
+  var found = 0;
+  cards.forEach(function(card) {
+    var data = card.getAttribute('data-search');
+    if (data.indexOf(query) !== -1) {
+      card.style.display = '';
+      found++;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+  var emptyEl = document.getElementById('emptySearch');
+  if (emptyEl) {
+    emptyEl.style.display = (found === 0 && query.length > 0) ? 'block' : 'none';
+  }
+}
+
+// ===== Download QR as PNG =====
+function downloadQR(id, resiNum) {
+  var canvas = document.querySelector('#qr-' + id + ' canvas');
+  if (!canvas) return;
+  var link = document.createElement('a');
+  link.download = 'QR-' + resiNum + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ===== Print single QR =====
+function printQR(id, resiNum, customerName, serviceName) {
+  var canvas = document.querySelector('#qr-' + id + ' canvas');
+  if (!canvas) return;
+  var dataUrl = canvas.toDataURL('image/png');
+  var w = window.open('', '_blank');
+  var html = '';
+  html += '<h' + 'tml><he' + 'ad><title>Resi ' + resiNum + '</title>';
+  html += '<sty' + 'le>';
+  html += 'body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }';
+  html += 'h1 { font-size: 20px; color: #1a2b6b; margin-bottom: 4px; }';
+  html += 'h2 { font-size: 16px; color: #666; margin-bottom: 24px; font-weight: normal; }';
+  html += '.resi-num { font-family: monospace; font-size: 24px; font-weight: bold; margin-top: 16px; color: #000; }';
+  html += '.badge { display: inline-block; background: #1a2b6b; color: #fff; padding: 6px 20px; border-radius: 20px; font-size: 14px; font-weight: bold; margin-top: 12px; }';
+  html += '.info { text-align: left; max-width: 300px; margin: 20px auto; font-size: 14px; border-top: 1px dashed #ccc; padding-top: 16px; }';
+  html += 'img { border: 2px solid #e5e7eb; border-radius: 12px; }';
+  html += 'p.hint { font-size: 12px; color: #999; margin-top: 20px; }';
+  html += '</sty' + 'le></he' + 'ad><bo' + 'dy>';
+  html += '<h1>TOKO ONLINE / GUDANG LOGISTIK</h1>';
+  html += '<h2>Bukti Pengambilan Barang</h2>';
+  html += '<img src="' + dataUrl + '" width="220" height="220">';
+  html += '<div class="resi-num">' + resiNum + '</div>';
+  html += '<span class="badge">' + serviceName + '</span>';
+  html += '<div class="info"><div><strong>Penerima:</strong> ' + customerName + '</div></div>';
+  html += '<p class="hint">Scan QR Code ini di mesin Kios Antrian untuk mengambil nomor antrian</p>';
+  html += '</bo' + 'dy></ht' + 'ml>';
+  w.document.write(html);
+  w.document.close();
+  setTimeout(function() { w.print(); }, 300);
+}
+
+// ===== Bind tombol Download & Cetak via data attributes =====
+function bindButtons() {
+  document.querySelectorAll('.btn-download-qr').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var card = btn.closest('.resi-item');
+      var id = card.getAttribute('data-resi-id');
+      var resiNum = card.getAttribute('data-resi-number');
+      downloadQR(id, resiNum);
+    });
+  });
+  document.querySelectorAll('.btn-print-qr').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var card = btn.closest('.resi-item');
+      var id = card.getAttribute('data-resi-id');
+      var resiNum = card.getAttribute('data-resi-number');
+      var customerName = card.getAttribute('data-customer-name');
+      var serviceName = card.getAttribute('data-service-name');
+      printQR(id, resiNum, customerName, serviceName);
+    });
+  });
+}
+</script>
+{% endblock %}
+

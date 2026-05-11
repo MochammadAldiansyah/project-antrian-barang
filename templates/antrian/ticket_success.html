@@ -3,7 +3,16 @@
 
 {% block content %}
 <div class="page-container success-page">
-  <!-- Notification (shown when ticket is called) -->
+  <!-- Notification Permission Banner -->
+  <div id="notifPermBanner" style="display:none;background:linear-gradient(90deg,#1e3a8a,#1d4ed8);color:#fff;padding:12px 20px;border-radius:var(--radius-md);margin-bottom:16px;display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <span style="font-size:.875rem;">Aktifkan notifikasi agar kami bisa memberitahu Anda saat giliran Anda tiba.</span>
+    </div>
+    <button onclick="requestNotifPermission()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:6px 16px;border-radius:var(--radius-sm);font-size:.8125rem;cursor:pointer;white-space:nowrap;">Aktifkan Notifikasi</button>
+  </div>
+
+  <!-- Alert Banner (shown when ticket is called) -->
   <div id="callNotification" class="notification-banner" style="display:none;">
     <div class="notification-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div>
     <div class="notification-content">
@@ -48,59 +57,133 @@
 <script>
 const trackingCode = '{{ ticket.tracking_code }}';
 let lastStatus = '{{ ticket.status }}';
+let pollingActive = true;
 
+// ============ NOTIFIKASI BROWSER ============
+function requestNotifPermission() {
+  if (!('Notification' in window)) {
+    alert('Browser Anda tidak mendukung notifikasi.');
+    return;
+  }
+  Notification.requestPermission().then(permission => {
+    const banner = document.getElementById('notifPermBanner');
+    if (permission === 'granted') {
+      if (banner) banner.style.display = 'none';
+      // Kirim notifikasi test sebagai konfirmasi
+      new Notification('AntrianBarang', {
+        body: 'Notifikasi aktif! Anda akan diberitahu saat giliran tiba.',
+        icon: '/static/img/favicon.png',
+      });
+    } else {
+      if (banner) banner.querySelector('span').textContent = 'Izin notifikasi ditolak. Anda perlu mengizinkan notifikasi secara manual di pengaturan browser.';
+    }
+  });
+}
+
+function sendBrowserNotification(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const notif = new Notification(title, {
+      body: body,
+      icon: '/static/img/favicon.png',
+      badge: '/static/img/favicon.png',
+      requireInteraction: true, // Notifikasi tidak hilang otomatis
+    });
+    // Auto-close setelah 15 detik
+    setTimeout(() => notif.close(), 15000);
+    return notif;
+  }
+  return null;
+}
+
+// Tampilkan banner izin jika belum diizinkan
+window.addEventListener('DOMContentLoaded', () => {
+  const banner = document.getElementById('notifPermBanner');
+  if ('Notification' in window && Notification.permission === 'default' && banner) {
+    banner.style.display = 'flex';
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
+});
+
+// ============ POLLING STATUS ============
 function checkTicket() {
+  if (!pollingActive) return;
+
   fetch('/api/check-ticket/' + trackingCode + '/')
     .then(r => r.json())
     .then(data => {
-      // Update position
+      // Update posisi antrian
       const posEl = document.getElementById('positionDisplay');
-      if (posEl) posEl.textContent = data.position || '-';
-
-      // Update badge
-      const badgeEl = document.getElementById('statusBadge');
-      badgeEl.innerHTML = '<span class="badge badge-' + data.status + '" style="font-size:.875rem;padding:8px 20px;">' + data.status_display + '</span>';
-
-      // Notification when status changes to called
-      if (data.status === 'called' && lastStatus !== 'called') {
-        showCallNotification(data);
+      if (posEl) {
+        posEl.textContent = data.position > 0 ? data.position : (data.status === 'called' ? '🔔' : '-');
       }
+
+      // Update badge status
+      const badgeEl = document.getElementById('statusBadge');
+      if (badgeEl) {
+        badgeEl.innerHTML = '<span class="badge badge-' + data.status + '" style="font-size:.875rem;padding:8px 20px;">' + data.status_display + '</span>';
+      }
+
+      // ===== EVENT: ANTRIAN DIPANGGIL =====
+      if (data.status === 'called' && lastStatus !== 'called') {
+        showCallAlert(data);
+
+        // Browser Push Notification (OS Level)
+        sendBrowserNotification(
+          'Antrian Anda Dipanggil! 🔔',
+          'Antrian ' + data.ticket_number + ' Dipanggil! Silahkan menuju ' + data.counter
+        );
+
+        // Bunyi beep peringatan
+        playBeepAlert();
+      }
+
+      // ===== EVENT: ANTRIAN SELESAI =====
+      if ((data.status === 'done' || data.status === 'cancelled') && lastStatus !== data.status) {
+        // Hentikan polling jika sudah selesai
+        if (data.status === 'done') {
+          pollingActive = false;
+          sendBrowserNotification(
+            'Antrian Selesai ✅',
+            'Terima kasih! Layanan Anda telah selesai. Sampai jumpa!'
+          );
+        }
+      }
+
       lastStatus = data.status;
     })
     .catch(() => {});
 }
 
-function showCallNotification(data) {
+function showCallAlert(data) {
   const el = document.getElementById('callNotification');
   document.getElementById('notifTitle').textContent = 'Nomor ' + data.ticket_number + ' Dipanggil!';
-  document.getElementById('notifMessage').textContent = 'Silakan menuju ' + data.counter;
+  document.getElementById('notifMessage').textContent = 'Silahkan menuju ' + data.counter;
   el.style.display = 'flex';
+  // Scroll ke atas agar banner terlihat
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
-  // Browser notification
-  if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('Nomor Anda Dipanggil!', { body: 'Silakan menuju ' + data.counter });
-  }
-
-  // Sound alert
+function playBeepAlert() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [880, 1100, 880].forEach((freq, i) => {
+    [880, 1100, 880, 1100].forEach((freq, i) => {
       setTimeout(() => {
         const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
         osc.type = 'sine';
         osc.frequency.value = freq;
-        osc.connect(ctx.destination);
+        gain.gain.value = 0.4;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
         osc.start();
-        setTimeout(() => osc.stop(), 200);
-      }, i * 300);
+        setTimeout(() => osc.stop(), 220);
+      }, i * 320);
     });
   } catch(e) {}
 }
 
-if ('Notification' in window && Notification.permission === 'default') {
-  Notification.requestPermission();
-}
-
-setInterval(checkTicket, 4000);
+// Polling setiap 5 detik
+setInterval(checkTicket, 5000);
 </script>
 {% endblock %}

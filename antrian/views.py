@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.utils import timezone
 from django.db.models import Count, Avg, Q, F
 from datetime import timedelta
-from .models import QueueTicket, ServiceType, Counter, Officer
+from .models import QueueTicket, ServiceType, Counter, Officer, DummyResi
 from .forms import TakeQueueForm, CheckStatusForm
 
 
@@ -116,6 +116,53 @@ def cek_status(request):
 def bantuan(request):
     """Halaman Bantuan / FAQ"""
     return render(request, 'antrian/bantuan.html', {'active_page': 'bantuan'})
+
+
+@login_required
+def admin_generate_resi(request):
+    """Halaman Database Resi/Paket Masuk (Simulasi untuk Demo UKK)"""
+    if request.method == 'POST':
+        resi_number = request.POST.get('resi_number', '').strip()
+        customer_name = request.POST.get('customer_name', '').strip()
+        customer_phone = request.POST.get('customer_phone', '').strip()
+        service_type_id = request.POST.get('service_type', '')
+
+        if resi_number and customer_name and service_type_id:
+            svc = get_object_or_404(ServiceType, pk=service_type_id)
+            if DummyResi.objects.filter(resi_number=resi_number).exists():
+                messages.error(request, f'Nomor resi "{resi_number}" sudah ada di database.')
+            else:
+                DummyResi.objects.create(
+                    resi_number=resi_number,
+                    customer_name=customer_name,
+                    customer_phone=customer_phone,
+                    service_type=svc
+                )
+                messages.success(request, f'Resi "{resi_number}" atas nama {customer_name} berhasil disimpan.')
+        else:
+            messages.error(request, 'Semua field wajib diisi.')
+        return redirect('antrian:admin_generate_resi')
+
+    services = ServiceType.objects.filter(is_active=True)
+    all_resi = DummyResi.objects.select_related('service_type').all()
+    ctx = _get_admin_context(request)
+    ctx.update({
+        'services': services,
+        'all_resi': all_resi,
+        'total_resi': all_resi.count(),
+        'active_page': 'generate_resi'
+    })
+    return render(request, 'antrian/generate_resi.html', ctx)
+
+
+@login_required
+def delete_resi(request, resi_id):
+    """Hapus satu resi dari database"""
+    resi = get_object_or_404(DummyResi, pk=resi_id)
+    resi_number = resi.resi_number
+    resi.delete()
+    messages.success(request, f'Resi "{resi_number}" berhasil dihapus.')
+    return redirect('antrian:admin_generate_resi')
 
 
 def display_antrian(request):
@@ -363,16 +410,40 @@ def call_next(request):
     """Panggil antrian berikutnya"""
     if request.method == 'POST':
         today = timezone.now().date()
+
+        # Validasi: pastikan petugas punya profil & loket aktif
         officer = None
         try:
             officer = request.user.officer_profile
         except (Officer.DoesNotExist, AttributeError):
             pass
 
-        # Selesaikan antrian yang sedang dipanggil
+        if not officer:
+            messages.error(request, 'Anda belum terdaftar sebagai petugas. Hubungi administrator untuk membuat profil petugas.')
+            referer = request.META.get('HTTP_REFERER', '')
+            if 'antrian-aktif' in referer:
+                return redirect('antrian:admin_antrian_aktif')
+            return redirect('antrian:admin_dashboard')
+
+        if not officer.counter:
+            messages.error(request, 'Anda belum di-assign ke loket manapun. Silakan hubungi administrator untuk pengaturan loket.')
+            referer = request.META.get('HTTP_REFERER', '')
+            if 'antrian-aktif' in referer:
+                return redirect('antrian:admin_antrian_aktif')
+            return redirect('antrian:admin_dashboard')
+
+        if not officer.counter.is_active:
+            messages.error(request, f'Loket {officer.counter} sedang tidak aktif. Silakan aktifkan loket terlebih dahulu di pengaturan.')
+            referer = request.META.get('HTTP_REFERER', '')
+            if 'antrian-aktif' in referer:
+                return redirect('antrian:admin_antrian_aktif')
+            return redirect('antrian:admin_dashboard')
+
+        # Selesaikan antrian yang sedang dilayani oleh petugas ini
         QueueTicket.objects.filter(
             created_at__date=today,
             status__in=['called', 'serving'],
+            counter=officer.counter,
         ).update(status='done', completed_at=timezone.now())
 
         # Panggil antrian berikutnya
@@ -384,15 +455,10 @@ def call_next(request):
         if next_ticket:
             next_ticket.status = 'called'
             next_ticket.called_at = timezone.now()
-            if officer and officer.counter:
-                next_ticket.counter = officer.counter
-                next_ticket.officer = officer
-            elif not next_ticket.counter:
-                first_counter = Counter.objects.filter(is_active=True).first()
-                if first_counter:
-                    next_ticket.counter = first_counter
+            next_ticket.counter = officer.counter
+            next_ticket.officer = officer
             next_ticket.save()
-            messages.success(request, f'Antrian {next_ticket.ticket_number} dipanggil!')
+            messages.success(request, f'Antrian {next_ticket.ticket_number} dipanggil ke {officer.counter}!')
         else:
             messages.info(request, 'Tidak ada antrian menunggu.')
 
