@@ -421,18 +421,34 @@ def call_next(request):
             pass
 
         if not officer:
-            messages.error(request, 'Anda belum terdaftar sebagai petugas. Hubungi administrator untuk membuat profil petugas.')
-            referer = request.META.get('HTTP_REFERER', '')
-            if 'antrian-aktif' in referer:
-                return redirect('antrian:admin_antrian_aktif')
-            return redirect('antrian:admin_dashboard')
+            # AUTO-CREATE UNTUK KEMUDAHAN DEMO/UKK DI DEPLOYMENT
+            from .models import Counter, Officer
+            default_counter, created = Counter.objects.get_or_create(
+                number=1, 
+                defaults={'name': 'Loket 01', 'is_active': True}
+            )
+            # Pastikan loket aktif
+            if not default_counter.is_active:
+                default_counter.is_active = True
+                default_counter.save()
+                
+            officer = Officer.objects.create(
+                user=request.user,
+                counter=default_counter,
+                employee_id=f"EMP-{request.user.id}"
+            )
+            messages.info(request, 'Profil Petugas otomatis dibuat dan di-assign ke Loket 01.')
 
         if not officer.counter:
-            messages.error(request, 'Anda belum di-assign ke loket manapun. Silakan hubungi administrator untuk pengaturan loket.')
-            referer = request.META.get('HTTP_REFERER', '')
-            if 'antrian-aktif' in referer:
-                return redirect('antrian:admin_antrian_aktif')
-            return redirect('antrian:admin_dashboard')
+            # Jika punya profil tapi belum ada loket, auto-assign
+            from .models import Counter
+            default_counter, created = Counter.objects.get_or_create(
+                number=1, 
+                defaults={'name': 'Loket 01', 'is_active': True}
+            )
+            officer.counter = default_counter
+            officer.save()
+            messages.info(request, 'Loket otomatis di-assign ke Loket 01.')
 
         if not officer.counter.is_active:
             messages.error(request, f'Loket {officer.counter} sedang tidak aktif. Silakan aktifkan loket terlebih dahulu di pengaturan.')
