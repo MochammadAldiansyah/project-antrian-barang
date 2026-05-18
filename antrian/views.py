@@ -416,8 +416,9 @@ def call_next(request):
         # Validasi: pastikan petugas punya profil & loket aktif
         officer = None
         try:
-            officer = request.user.officer_profile
-        except (Officer.DoesNotExist, AttributeError):
+            if hasattr(request.user, 'officer_profile'):
+                officer = request.user.officer_profile
+        except Exception:
             pass
 
         if not officer:
@@ -432,12 +433,15 @@ def call_next(request):
                 default_counter.is_active = True
                 default_counter.save()
                 
-            officer = Officer.objects.create(
+            officer, created_officer = Officer.objects.get_or_create(
                 user=request.user,
-                counter=default_counter,
-                employee_id=f"EMP-{request.user.id}"
+                defaults={
+                    'counter': default_counter,
+                    'employee_id': f"EMP-{request.user.id}"
+                }
             )
-            messages.info(request, 'Profil Petugas otomatis dibuat dan di-assign ke Loket 01.')
+            if created_officer:
+                messages.info(request, 'Profil Petugas otomatis dibuat dan di-assign ke Loket 01.')
 
         if not officer.counter:
             # Jika punya profil tapi belum ada loket, auto-assign
