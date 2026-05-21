@@ -41,11 +41,14 @@
 
   function checkTicket() {
     if (!pollingActive || !trackingCode) return;
+    // Jangan fetch jika tab di background
+    if (document.visibilityState !== 'visible') return;
+
     fetch('/api/check-ticket/' + trackingCode + '/')
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var posEl = document.getElementById('positionDisplay');
-        if (posEl) posEl.textContent = data.position > 0 ? data.position : (data.status === 'called' ? '🔔' : '-');
+        if (posEl) posEl.textContent = data.position > 0 ? data.position : (data.status === 'called' ? '' : '-');
         var badgeEl = document.getElementById('statusBadge');
         if (badgeEl) badgeEl.innerHTML = statusBadgeHtml(data.status, data.status_display);
         if (data.status === 'called' && lastStatus !== 'called') {
@@ -63,7 +66,7 @@
         }
         lastStatus = data.status;
       })
-      .catch(function () {});
+      .catch(function () { });
   }
 
   function playBeepAlert() {
@@ -81,8 +84,13 @@
           setTimeout(function () { osc.stop(); }, 220);
         }, i * 320);
       });
-    } catch (e) {}
+    } catch (e) { }
   }
+
+  // Refresh langsung saat tab kembali aktif
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') checkTicket();
+  });
 
   setInterval(checkTicket, 5000);
 })();

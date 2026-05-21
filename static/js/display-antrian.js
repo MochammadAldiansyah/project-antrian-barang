@@ -2,6 +2,9 @@
   var lastCalledNumber = document.body.dataset.initialNumber || '';
 
   function updateDisplay() {
+    // Jangan fetch jika tab di background
+    if (document.visibilityState !== 'visible') return;
+
     fetch('/api/queue-status/')
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -115,5 +118,11 @@
     window.speechSynthesis.speak(utterance);
   }
 
-  setInterval(updateDisplay, 3000);
+  // Refresh langsung saat tab kembali aktif
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') updateDisplay();
+  });
+
+  // Poll setiap 4 detik
+  setInterval(updateDisplay, 4000);
 })();

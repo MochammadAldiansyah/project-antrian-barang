@@ -41,6 +41,9 @@
   }
 
   window.refreshQueue = function () {
+    // Jangan fetch jika tab di background
+    if (document.visibilityState !== 'visible') return;
+
     fetch(document.body.dataset.queueApi)
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -67,5 +70,11 @@
   };
 
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+
+  // Refresh langsung saat tab kembali aktif
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') window.refreshQueue();
+  });
+
   setInterval(window.refreshQueue, 5000);
 })();
