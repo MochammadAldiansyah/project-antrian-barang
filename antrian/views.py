@@ -588,3 +588,75 @@ def api_check_ticket(request, tracking_code):
         'called_at': ticket.called_at.strftime('%H:%M') if ticket.called_at else None,
     }
     return JsonResponse(data)
+
+
+@login_required
+def api_admin_dashboard_data(request):
+    """API: Returns pre-rendered HTML for admin dashboard content plus stats."""
+    from django.template.loader import render_to_string
+    today = timezone.now().date()
+    today_tickets = QueueTicket.objects.filter(created_at__date=today)
+
+    total_antrian = today_tickets.count()
+    antrian_selesai = today_tickets.filter(status='done').count()
+    antrian_waiting = today_tickets.filter(status='waiting').count()
+
+    # Rata-rata waktu layanan
+    completed = today_tickets.filter(status='done', served_at__isnull=False, completed_at__isnull=False)
+    if completed.exists():
+        total_duration = sum([(t.completed_at - t.served_at).total_seconds() for t in completed])
+        avg_service_time = total_duration / completed.count() / 60
+    else:
+        avg_service_time = 0
+
+    current_serving = today_tickets.filter(
+        status__in=['called', 'serving']
+    ).select_related('counter', 'service_type', 'officer').order_by('-called_at').first()
+
+    all_tickets = today_tickets.select_related('service_type', 'counter').order_by('-created_at')
+
+    # Get admin context
+    ctx = _get_admin_context(request)
+    ctx.update({
+        'total_antrian': total_antrian,
+        'antrian_selesai': antrian_selesai,
+        'antrian_waiting': antrian_waiting,
+        'avg_service_time': round(avg_service_time, 1),
+        'current_serving': current_serving,
+        'all_tickets': all_tickets,
+        'printer_paper_pct': 15,
+        'today': timezone.now(),
+        'active_page': 'dashboard',
+    })
+    
+    html = render_to_string('antrian/partials/admin_dashboard_content.html', ctx, request=request)
+    return JsonResponse({'html': html})
+
+
+@login_required
+def api_admin_antrian_aktif_data(request):
+    """API: Returns pre-rendered HTML for admin antrian aktif content."""
+    from django.template.loader import render_to_string
+    today = timezone.now().date()
+
+    current_serving = QueueTicket.objects.filter(
+        created_at__date=today,
+        status__in=['called', 'serving']
+    ).select_related('counter', 'service_type').order_by('-called_at').first()
+
+    waiting_tickets = QueueTicket.objects.filter(
+        created_at__date=today,
+        status='waiting'
+    ).select_related('service_type').order_by('created_at')
+
+    ctx = _get_admin_context(request)
+    ctx.update({
+        'current_serving': current_serving,
+        'waiting_tickets': waiting_tickets,
+        'today': timezone.now(),
+        'active_page': 'antrian_aktif',
+    })
+    
+    html = render_to_string('antrian/partials/admin_antrian_aktif_content.html', ctx, request=request)
+    return JsonResponse({'html': html})
+

@@ -29,4 +29,6 @@ urlpatterns = [
     path('api/update-status/<int:ticket_id>/', views.update_ticket_status, name='update_ticket_status'),
     path('api/queue-status/', views.api_queue_status, name='api_queue_status'),
     path('api/check-ticket/<str:tracking_code>/', views.api_check_ticket, name='api_check_ticket'),
+    path('api/admin/dashboard-data/', views.api_admin_dashboard_data, name='api_admin_dashboard_data'),
+    path('api/admin/antrian-aktif-data/', views.api_admin_antrian_aktif_data, name='api_admin_antrian_aktif_data'),
 ]

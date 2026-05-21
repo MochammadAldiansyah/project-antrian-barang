@@ -28,6 +28,9 @@
             numEl.classList.add('is-pulse');
             lastCalledNumber = data.current.number;
             playCallSound();
+            setTimeout(function () {
+              speakCall(data.current.number, data.current.counter);
+            }, 1500);
           }
         } else if (numEl) {
           numEl.textContent = '---';
@@ -67,6 +70,49 @@
         }, i * 350);
       });
     } catch (e) {}
+  }
+
+  function formatNumberForSpeech(numStr) {
+    if (!numStr) return '';
+    var parts = numStr.split('-');
+    var prefix = parts[0] || '';
+    var digits = parts[1] || '';
+    
+    var spokenDigits = [];
+    for (var i = 0; i < digits.length; i++) {
+      var char = digits.charAt(i);
+      if (char === '0') {
+        spokenDigits.push('nol');
+      } else {
+        spokenDigits.push(char);
+      }
+    }
+    return prefix + ' ' + spokenDigits.join(' ');
+  }
+
+  function speakCall(number, counter) {
+    if (!('speechSynthesis' in window)) return;
+    
+    var spokenNumber = formatNumberForSpeech(number);
+    var text = "Nomor antrian " + spokenNumber + ", silakan menuju " + counter;
+
+    var utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'id-ID';
+    utterance.rate = 0.85;
+    utterance.pitch = 1.0;
+
+    // Load Indonesian voice if available
+    if (window.speechSynthesis.getVoices) {
+      var voices = window.speechSynthesis.getVoices();
+      var idVoice = voices.find(function (v) {
+        return v.lang.indexOf('id') === 0;
+      });
+      if (idVoice) {
+        utterance.voice = idVoice;
+      }
+    }
+
+    window.speechSynthesis.speak(utterance);
   }
 
   setInterval(updateDisplay, 3000);

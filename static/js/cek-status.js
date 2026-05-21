@@ -1,6 +1,31 @@
 (function () {
   var lastCalledNumber = document.body.dataset.lastCalled || '';
 
+  function sendBrowserNotification(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      var notif = new Notification(title, { body: body, requireInteraction: true });
+      setTimeout(function () { notif.close(); }, 15000);
+    }
+  }
+
+  function playBeepAlert() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [880, 1100, 880, 1100].forEach(function (freq, i) {
+        setTimeout(function () {
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.frequency.value = freq;
+          gain.gain.value = 0.4;
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          setTimeout(function () { osc.stop(); }, 220);
+        }, i * 320);
+      });
+    } catch (e) {}
+  }
+
   function statusBadgeHtml(status, statusDisplay) {
     if (status === 'waiting') return '<span class="inline-flex border-2 border-black bg-[#FFD600] px-2 py-0.5 text-[10px] font-black uppercase shadow-[2px_2px_0px_0px_#000]">Pending</span>';
     if (status === 'called' || status === 'serving') return '<span class="inline-flex border-2 border-black bg-[#2D5BFF] px-2 py-0.5 text-[10px] font-black uppercase text-white shadow-[2px_2px_0px_0px_#000]">Diproses</span>';
@@ -25,6 +50,8 @@
           document.getElementById('notifTitle').textContent = 'Nomor ' + data.current.number + ' Dipanggil!';
           document.getElementById('notifMessage').textContent = 'Silakan menuju ' + data.current.counter + '. Nama: ' + data.current.name;
           if (el) { el.classList.remove('is-hidden'); el.classList.add('is-visible'); }
+          sendBrowserNotification('Antrian Dipanggil!', 'Antrian ' + data.current.number + ' — menuju ' + data.current.counter);
+          playBeepAlert();
         }
         if (data.all_tickets && data.all_tickets.length > 0) {
           var html = '';

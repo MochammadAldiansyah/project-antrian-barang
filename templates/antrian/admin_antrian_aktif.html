@@ -4,54 +4,15 @@
 {% include "includes/admin_header.html" with page_title="Antrian Aktif" page_subtitle=today|date:"l, d F Y" %}
 {% if messages %}<div class="mb-4">{% for msg in messages %}<p class="brutal-alert brutal-alert--success">{{ msg }}</p>{% endfor %}</div>{% endif %}
 
-<section class="call-panel">
-  <h3>Sedang Dipanggil / Dilayani</h3>
-  {% if current_serving %}
-  <div class="call-current">
-    <div class="flex h-14 w-14 items-center justify-center border-2 border-black bg-brand-yellow">
-      <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>
-    </div>
-    <div>
-      <p class="call-current__number">{{ current_serving.ticket_number }}</p>
-      <p class="text-sm font-semibold">{{ current_serving.customer_name }} &bull; {{ current_serving.service_type }} &bull; {{ current_serving.counter|default:"Loket 01" }}</p>
-      <p class="text-xs text-neutral-500">Dipanggil: {{ current_serving.called_at|date:"H:i" }}</p>
-    </div>
-  </div>
-  <div class="admin-actions">
-    <form method="post" action="{% url 'antrian:update_ticket_status' current_serving.id %}">{% csrf_token %}<input type="hidden" name="status" value="serving"><button type="submit" class="btn-brutal btn-brutal--blue btn-brutal--sm">Mulai Layani</button></form>
-    <form method="post" action="{% url 'antrian:update_ticket_status' current_serving.id %}">{% csrf_token %}<input type="hidden" name="status" value="done"><button type="submit" class="btn-brutal btn-brutal--outline btn-brutal--sm">Selesai</button></form>
-    <form method="post" action="{% url 'antrian:update_ticket_status' current_serving.id %}">{% csrf_token %}<input type="hidden" name="status" value="skipped"><button type="submit" class="btn-brutal btn-brutal--outline btn-brutal--sm btn-brutal--danger">Lewati</button></form>
-    <form method="post" action="{% url 'antrian:call_next' %}">{% csrf_token %}<button type="submit" class="btn-brutal btn-brutal--yellow btn-brutal--sm">Panggil Berikutnya</button></form>
-  </div>
-  {% else %}
-  <form method="post" action="{% url 'antrian:call_next' %}">{% csrf_token %}<button type="submit" class="btn-brutal btn-brutal--yellow">Panggil Antrian Pertama</button></form>
-  {% endif %}
-</section>
+<div id="antrianAktifContent">
+  {% include "antrian/partials/admin_antrian_aktif_content.html" %}
+</div>
+{% endblock %}
 
-<section class="admin-table-wrap mt-6">
-  <div class="table-header"><h3>Antrian Menunggu</h3><span class="text-xs font-bold text-neutral-500">{{ waiting_tickets|length }} orang</span></div>
-  <table class="admin-table">
-    <thead><tr><th>Urutan</th><th>No.</th><th>Nama</th><th>Layanan</th><th>Daftar</th><th>Tunggu</th><th>Aksi</th></tr></thead>
-    <tbody>
-      {% for ticket in waiting_tickets %}
-      <tr>
-        <td class="font-bold text-neutral-400">{{ forloop.counter }}</td>
-        <td><strong>{{ ticket.ticket_number }}</strong></td>
-        <td>{{ ticket.customer_name }}</td>
-        <td>{{ ticket.service_type }}</td>
-        <td>{{ ticket.created_at|date:"H:i" }}</td>
-        <td class="font-bold text-amber-600">~{{ ticket.wait_time_minutes }} mnt</td>
-        <td>
-          <form method="post" action="{% url 'antrian:update_ticket_status' ticket.id %}" class="inline">{% csrf_token %}
-            <input type="hidden" name="status" value="cancelled">
-            <button type="submit" class="btn-brutal btn-brutal--outline btn-brutal--sm btn-brutal--danger">Batalkan</button>
-          </form>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="7" class="py-8 text-center text-neutral-500">Tidak ada antrian menunggu</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</section>
+{% block extra_js %}
+{% load static %}
+<script>
+  document.body.dataset.antrianAktifApi = "{% url 'antrian:api_admin_antrian_aktif_data' %}";
+</script>
+<script src="{% static 'js/admin-antrian-aktif.js' %}"></script>
 {% endblock %}

@@ -1,0 +1,121 @@
+{% if messages %}
+<div class="mb-4">
+  {% for msg in messages %}
+  <p class="brutal-alert brutal-alert--{% if msg.tags == 'success' %}success{% elif msg.tags == 'error' %}error{% else %}info{% endif %}">{{ msg }}</p>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="admin-stat-grid">
+  <div class="admin-stat-card admin-stat-card--yellow">
+    <p class="label">Total Antrian</p>
+    <p class="value">{{ total_antrian }}</p>
+  </div>
+  <div class="admin-stat-card">
+    <p class="label">Antrian Selesai</p>
+    <p class="value text-emerald-600">{{ antrian_selesai }}</p>
+  </div>
+  <div class="admin-stat-card admin-stat-card--purple">
+    <p class="label">Rata-Rata Layanan</p>
+    <p class="value">{{ avg_service_time }}<span class="text-lg"> mnt</span></p>
+  </div>
+  <div class="admin-stat-card">
+    <p class="label">Sedang Melayani</p>
+    <p class="value text-brand-blue">{% if current_serving %}{{ current_serving.ticket_number }}{% else %}-{% endif %}</p>
+  </div>
+</div>
+
+<div class="admin-layout-grid admin-layout-grid--2">
+  <div>
+    <section class="call-panel">
+      <h3>Panggil Antrian</h3>
+      {% if current_serving %}
+      <div class="call-current">
+        <div class="flex h-14 w-14 items-center justify-center border-2 border-black bg-brand-yellow">
+          <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>
+        </div>
+        <div>
+          <p class="text-xs font-bold uppercase text-neutral-500">Sedang memanggil</p>
+          <p class="call-current__number">PANGGIL: {{ current_serving.ticket_number }}</p>
+          <p class="text-sm font-semibold">{{ current_serving.customer_name }} &bull; {{ current_serving.counter|default:"Loket 01" }}</p>
+        </div>
+      </div>
+      <div class="admin-actions">
+        <form method="post" action="{% url 'antrian:update_ticket_status' current_serving.id %}">{% csrf_token %}
+          <input type="hidden" name="status" value="serving">
+          <button type="submit" class="btn-brutal btn-brutal--blue btn-brutal--sm">Mulai Layani</button>
+        </form>
+        <form method="post" action="{% url 'antrian:update_ticket_status' current_serving.id %}">{% csrf_token %}
+          <input type="hidden" name="status" value="done">
+          <button type="submit" class="btn-brutal btn-brutal--outline btn-brutal--sm">Selesai</button>
+        </form>
+        <form method="post" action="{% url 'antrian:update_ticket_status' current_serving.id %}">{% csrf_token %}
+          <input type="hidden" name="status" value="skipped">
+          <button type="submit" class="btn-brutal btn-brutal--outline btn-brutal--sm btn-brutal--danger">Lewati</button>
+        </form>
+        <form method="post" action="{% url 'antrian:update_ticket_status' current_serving.id %}">{% csrf_token %}
+          <input type="hidden" name="status" value="cancelled">
+          <button type="submit" class="btn-brutal btn-brutal--outline btn-brutal--sm btn-brutal--danger">Batal</button>
+        </form>
+        <form method="post" action="{% url 'antrian:call_next' %}">{% csrf_token %}
+          <button type="submit" class="btn-brutal btn-brutal--yellow btn-brutal--sm">Panggil Berikutnya</button>
+        </form>
+      </div>
+      {% else %}
+      <form method="post" action="{% url 'antrian:call_next' %}">{% csrf_token %}
+        <button type="submit" class="btn-brutal btn-brutal--yellow">Panggil Berikutnya</button>
+      </form>
+      <p class="mt-2 text-xs font-semibold text-neutral-500">{{ antrian_waiting }} antrian menunggu</p>
+      {% endif %}
+    </section>
+
+    <section class="admin-table-wrap mt-6">
+      <div class="table-header">
+        <h3>Semua Antrian Hari Ini</h3>
+        <span class="text-xs font-bold text-neutral-500">{{ total_antrian }} Antrian</span>
+      </div>
+      <table class="admin-table">
+        <thead>
+          <tr><th>No.</th><th>Nama</th><th>Layanan</th><th>Waktu</th><th>Status</th><th>Aksi</th></tr>
+        </thead>
+        <tbody>
+          {% for ticket in all_tickets %}
+          <tr class="{% if ticket.status == 'called' or ticket.status == 'serving' %}row-active{% endif %}">
+            <td><strong>{{ ticket.ticket_number }}</strong></td>
+            <td>{{ ticket.customer_name }}</td>
+            <td>{{ ticket.service_type }}</td>
+            <td>{{ ticket.created_at|date:"H:i" }}</td>
+            <td>{% include "includes/status_badge.html" with status=ticket.status label=ticket.get_status_display %}</td>
+            <td>
+              {% if ticket.status == 'waiting' %}
+              <form method="post" action="{% url 'antrian:call_next' %}" class="inline">{% csrf_token %}
+                <button type="submit" class="btn-brutal btn-brutal--blue btn-brutal--sm">Panggil</button>
+              </form>
+              {% elif ticket.status == 'called' or ticket.status == 'serving' %}
+              <form method="post" action="{% url 'antrian:update_ticket_status' ticket.id %}" class="inline">{% csrf_token %}
+                <input type="hidden" name="status" value="done">
+                <button type="submit" class="btn-brutal btn-brutal--yellow btn-brutal--sm">Selesai</button>
+              </form>
+              {% else %}
+              <span class="text-neutral-400">-</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center py-8 text-neutral-500">Belum ada antrian hari ini</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <aside>
+    {% if current_serving %}
+    <div class="current-queue-highlight">
+      <p class="text-xs font-black uppercase">Fokus Antrian</p>
+      <p class="number">{{ current_serving.ticket_number }}</p>
+      <p class="mt-2 text-sm font-bold">{{ current_serving.customer_name }}</p>
+    </div>
+    {% endif %}
+  </aside>
+</div>
